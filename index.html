@@ -1,0 +1,152 @@
+
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10243a">
+<title>Phiên dịch Việt – Trung</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18283a;background:#f2f5f9}
+*{box-sizing:border-box}
+body{margin:0;max-width:620px;margin:auto;padding:20px 16px}
+header{text-align:center;padding:22px 0 16px}
+h1{font-size:24px;margin:0 0 6px}
+header p{color:#65758a;font-size:14px}
+.card{background:white;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 4px 18px #10243a0b}
+.label{font-size:12px;font-weight:700;color:#708096;margin-bottom:10px}
+textarea{width:100%;min-height:110px;border:0;outline:0;resize:vertical;font:18px/1.5 -apple-system,sans-serif;color:#172536;background:transparent}
+textarea::placeholder{color:#a0aab6}
+.result{font-size:21px;line-height:1.55;min-height:64px;white-space:pre-wrap;overflow-wrap:anywhere}
+.row{display:flex;align-items:center;gap:10px}
+button,select{font:inherit;border:0;border-radius:12px;padding:13px;background:#eaf0f6;color:#24374b}
+button{font-weight:650;cursor:pointer}
+.primary{background:#1769d2;color:white;flex:1}
+.danger{background:#fce9e9;color:#a52828}
+select{width:100%;font-size:16px}
+.muted{color:#9aa6b3}
+.status{text-align:center;color:#536579;font-size:14px;min-height:24px;margin:12px 0}
+.small{font-size:12px;color:#728196;line-height:1.5}
+.tip{background:#fff7e5;color:#73551b;padding:12px;border-radius:12px;font-size:13px;line-height:1.45}
+.actions{display:flex;gap:9px;margin-top:12px}
+.actions button{flex:1}
+</style>
+</head>
+<body>
+<header>
+<h1>🇻🇳 Việt – Trung 🇨🇳</h1>
+<p>Phiên dịch hội thoại · Không cần API Key</p>
+</header>
+
+<div class="card">
+<div class="label">CHIỀU DỊCH</div>
+<select id="direction">
+<option value="vi-zh">🇻🇳 Tiếng Việt → 🇨🇳 Tiếng Trung</option>
+<option value="zh-vi">🇨🇳 Tiếng Trung → 🇻🇳 Tiếng Việt</option>
+</select>
+</div>
+
+<div class="card">
+<div class="label">NỘI DUNG BẠN NÓI</div>
+<textarea id="source" placeholder="Nhấn vào đây, sau đó nhấn micro trên bàn phím iPhone để đọc..."></textarea>
+<div class="small">Sử dụng micro trên bàn phím iPhone để nhập lời nói bằng giọng nói.</div>
+</div>
+
+<div class="row">
+<button id="start" class="primary">▶ START</button>
+<button id="stop" class="danger" disabled>■ STOP</button>
+</div>
+
+<div class="status" id="status">Sẵn sàng</div>
+
+<div class="card">
+<div class="label">BẢN DỊCH · TỰ ĐỘNG ĐỌC</div>
+<div id="result" class="result muted">Bản dịch sẽ hiển thị tại đây…</div>
+<div class="actions">
+<button id="translate" class="primary" disabled>⇄ DỊCH & PHÁT</button>
+<button id="replay" disabled>🔊 Phát lại</button>
+</div>
+</div>
+
+<div class="tip">
+<b>Lưu ý:</b> Bản miễn phí sử dụng micro đọc chính tả trên bàn phím iPhone. Bạn nói từng lượt, nhấn DỊCH & PHÁT, sau đó chuyển lượt cho người kia. Dịch thuật sử dụng dịch vụ Google công khai.
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let running=false,lastText='',lastLang='zh-CN';
+
+function say(text,lang){
+ if(!('speechSynthesis' in window))return;
+ speechSynthesis.cancel();
+ const u=new SpeechSynthesisUtterance(text);
+ u.lang=lang;
+ u.rate=0.92;
+ const voices=speechSynthesis.getVoices();
+ const voice=voices.find(v=>v.lang.toLowerCase()===lang.toLowerCase())
+ ||voices.find(v=>v.lang.toLowerCase().startsWith(lang.slice(0,2)));
+ if(voice)u.voice=voice;
+ speechSynthesis.speak(u);
+}
+
+function setStatus(s){$('status').textContent=s}
+
+$('start').onclick=()=>{
+ running=true;
+ $('start').disabled=true;
+ $('stop').disabled=false;
+ $('translate').disabled=false;
+ setStatus('Đang phiên dịch. Hãy nhập lời nói.');
+};
+
+$('stop').onclick=()=>{
+ running=false;
+ speechSynthesis.cancel();
+ $('start').disabled=false;
+ $('stop').disabled=true;
+ $('translate').disabled=true;
+ setStatus('Đã kết thúc phiên dịch.');
+};
+
+$('translate').onclick=async()=>{
+ if(!running)return;
+ const text=$('source').value.trim();
+ if(!text){
+ setStatus('Hãy nhập lời nói bằng micro bàn phím iPhone.');
+ return;
+ }
+ const [sl,tl]=$('direction').value==='vi-zh'
+ ?['vi','zh-CN']:['zh-CN','vi'];
+
+ setStatus('Đang dịch...');
+ $('translate').disabled=true;
+
+ try{
+ const url='https://translate.googleapis.com/translate_a/single?client=gtx&sl='+encodeURIComponent(sl)+'&tl='+encodeURIComponent(tl)+'&dt=t&q='+encodeURIComponent(text);
+ const res=await fetch(url);
+ if(!res.ok)throw new Error('Dịch vụ không phản hồi');
+ const data=await res.json();
+ const translated=(data[0]||[]).map(x=>x&&x[0]?x[0]:'').join('').trim();
+ if(!translated)throw new Error('Không có bản dịch');
+
+ $('result').textContent=translated;
+ $('result').classList.remove('muted');
+ lastText=translated;
+ lastLang=tl==='zh-CN'?'zh-CN':'vi-VN';
+ $('replay').disabled=false;
+ say(translated,lastLang);
+ setStatus('Đã dịch và phát âm thanh.');
+ $('source').value='';
+ }catch(e){
+ setStatus('Lỗi dịch: '+e.message);
+ }finally{
+ $('translate').disabled=!running;
+ }
+};
+
+$('replay').onclick=()=>{
+ if(lastText)say(lastText,lastLang);
+};
+</script>
+</body>
+</html>
